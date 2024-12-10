@@ -388,8 +388,13 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    # Use environment variables to control the server configuration
+    # Get port from environment variable as required by Render
+    port = int(os.environ.get('PORT', 10000))  # Default to 10000 if PORT not set
     debug_mode = os.getenv('FLASK_ENV') == 'development'
-    host = '127.0.0.1' if debug_mode else '0.0.0.0'
-    port = int(os.getenv('PORT', 5000))  # Add this line to specify the port
-    app.run(host=host, port=port, debug=debug_mode)  # Update this line to include the port
+    
+    # Always bind to 0.0.0.0 for Render
+    app.run(
+        host='0.0.0.0',  # Required for Render
+        port=port,
+        debug=debug_mode
+    )
