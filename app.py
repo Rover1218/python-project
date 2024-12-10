@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from db import get_db_connection
 import bcrypt
 import requests
@@ -244,91 +244,113 @@ def quiz():
             return redirect(url_for('home'))
     
     if request.method == 'POST':
-        user_id = session['user_id']
-        answers = request.form.getlist('answers[]')
-        question_ids = request.form.getlist('question_ids[]')
-        
-        if not answers or not question_ids:
-            flash("No answers submitted. Please try again.", "error")
-            return redirect(url_for('quiz'))
-        
-        conn = get_db_connection()
-        if conn:
-            cur = conn.cursor()
-            try:
-                correct_answers = 0
-                total_questions = len(question_ids)
-                
-                # Record user answers
-                for q_id, answer in zip(question_ids, answers):
+        try:
+            data = request.get_json()
+            print("Received data:", data)  # Debug log
+            
+            user_id = session['user_id']
+            answers = data.get('answers', [])
+            
+            if not answers:
+                return jsonify({'success': False, 'error': 'No answers provided'})
+            
+            total_questions = len(answers)
+            correct_answers = sum(1 for ans in answers if ans['isCorrect'])
+            quiz_score = (correct_answers / total_questions) * 100
+
+            conn = get_db_connection()
+            if conn:
+                cur = conn.cursor()
+                try:
+                    # Create Results entry
                     cur.execute("""
-                        INSERT INTO User_Answers (user_id, question_id, selected_answer_id)
-                        VALUES (%s, %s, %s)
-                    """, (user_id, q_id, answer))
+                        INSERT INTO Results 
+                        (user_id, quiz_score, total_questions, correct_answers, submitted_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                        RETURNING result_id
+                    """, (user_id, quiz_score, total_questions, correct_answers))
                     
-                    # Check if answer is correct
-                    cur.execute("""
-                        SELECT is_correct FROM Answers 
-                        WHERE question_id = %s AND answer_id = %s
-                    """, (q_id, answer))
-                    if cur.fetchone()[0]:
-                        correct_answers += 1
-                
-                # Calculate score
-                quiz_score = (correct_answers / total_questions) * 100
-                
-                # Store result
-                cur.execute("""
-                    INSERT INTO Results (user_id, quiz_score, total_questions, correct_answers)
-                    VALUES (%s, %s, %s, %s)
-                """, (user_id, quiz_score, total_questions, correct_answers))
-                
-                conn.commit()
-                flash(f"Quiz completed! Your score: {quiz_score:.1f}%", "success")
-                return redirect(url_for('results'))
-            except Exception as e:
-                conn.rollback()
-                flash(f"Error submitting quiz: {str(e)}", "error")
-            finally:
-                cur.close()
-                conn.close()
-    
+                    result_id = cur.fetchone()[0]
+                    print(f"Created result_id: {result_id}")  # Debug log
+                    
+                    # Store each answer
+                    for answer in answers:
+                        print(f"Processing answer: {answer}")  # Debug log
+                        cur.execute("""
+                            INSERT INTO User_Answers 
+                            (user_id, question_id, selected_answer_id, result_id, is_correct)
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (
+                            user_id, 
+                            answer['questionId'], 
+                            answer['answerId'],
+                            result_id,
+                            answer['isCorrect']
+                        ))
+                    
+                    conn.commit()
+                    return jsonify({
+                        'success': True,
+                        'score': quiz_score,
+                        'correct': correct_answers,
+                        'total': total_questions,
+                        'result_id': result_id
+                    })
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Database error: {str(e)}")  # Debug log
+                    return jsonify({'success': False, 'error': str(e)})
+                finally:
+                    cur.close()
+                    conn.close()
+        except Exception as e:
+            print(f"Server error: {str(e)}")  # Debug log
+            return jsonify({'success': False, 'error': str(e)})
+
     flash("Error loading quiz questions", "error")
     return redirect(url_for('home'))
 
-@app.route('/results')
+@app.route('/results/<int:result_id>')
 @login_required
-def results():
-    user_id = session['user_id']
+def view_result(result_id):
     conn = get_db_connection()
     if conn:
         cur = conn.cursor()
         try:
+            # Get quiz result
             cur.execute("""
                 SELECT quiz_score, submitted_at, total_questions, correct_answers
                 FROM Results 
-                WHERE user_id = %s 
-                ORDER BY submitted_at DESC LIMIT 1
-            """, (user_id,))
+                WHERE result_id = %s AND user_id = %s
+            """, (result_id, session['user_id']))
             result = cur.fetchone()
             
             if result:
-                score, date, total, correct = result
-                formatted_date = date.strftime("%B %d, %Y at %I:%M %p")
+                # Get detailed answers
+                cur.execute("""
+                    SELECT q.question_text, ua.is_correct, 
+                           ua.selected_answer_id, a.answer_text,
+                           (SELECT answer_text FROM Answers WHERE question_id = q.question_id AND is_correct = true LIMIT 1) as correct_answer
+                    FROM User_Answers ua
+                    JOIN Questions q ON ua.question_id = q.question_id
+                    JOIN Answers a ON ua.selected_answer_id = a.answer_id
+                    WHERE ua.result_id = %s
+                    ORDER BY ua.answer_id
+                """, (result_id,))
+                answers = cur.fetchall()
+                
                 return render_template("results.html", 
-                                    score=score, 
-                                    date=formatted_date,
-                                    total_questions=total,
-                                    correct_answers=correct)
+                                    result=result,
+                                    answers=answers)
+            
         except Exception as e:
             flash(f"Error retrieving results: {str(e)}", "error")
         finally:
             cur.close()
             conn.close()
     
-    return render_template("results.html", score=None, date=None)
+    return redirect(url_for('home'))
 
-# Route: Logout
 @app.route('/logout')
 def logout():
     if 'user_id' in session:
@@ -337,7 +359,6 @@ def logout():
         # Store the logout message in session
         session['logout_message'] = f"Goodbye {username}! You've been logged out successfully!"
     return redirect(url_for('login'))
-
 
 if __name__ == '__main__':
     app.run(debug=True)
