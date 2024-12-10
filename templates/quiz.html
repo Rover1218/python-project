@@ -19,15 +19,15 @@
     <div class="min-h-screen flex items-center justify-center">
         <div class="w-full max-w-5xl px-6">
             <div class="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8">
+                {% if not questions %}
+                <!-- Settings Header - Only show when no questions -->
                 <header class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-800 mb-3">
                         Customize Your Quiz
                     </h1>
                     <p class="text-gray-600">Choose your preferred settings</p>
                 </header>
-
                 <!-- Quiz Settings Form -->
-                {% if not questions and not quiz_type %}
                 <div class="quiz-settings">
                     <form action="{{ url_for('quiz') }}" method="GET">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -144,48 +144,55 @@
                         </div>
                     </form>
                 </div>
-                {% endif %}
-
-                {% if questions %}
+                {% else %}
+                <!-- Quiz Questions - Show without header when questions are loaded -->
                 <form action="{{ url_for('quiz') }}" method="POST" class="quiz-form" id="quizForm">
                     <div class="questions-container space-y-6">
                         {% for question in questions %}
                         <div class="question-card{% if not loop.first %} hidden{% endif %} p-6 bg-gray-50 rounded-xl shadow-inner"
                             data-question="{{ loop.index }}">
                             <input type="hidden" name="question_ids[]" value="{{ question.id }}">
+
+                            <!-- Timer Bar -->
+                            <div class="timer-bar w-full h-1 bg-gray-200 rounded-full mb-4">
+                                <div class="timer-progress h-full bg-indigo-600 rounded-full w-full"></div>
+                            </div>
+
                             <h3 class="text-lg font-medium text-gray-700 mb-4">Question {{ loop.index }}</h3>
                             <p class="text-gray-800 mb-6">{{ question.question | safe }}</p>
                             <div class="grid grid-cols-1 gap-4">
                                 {% for answer in question.answers %}
-                                <label
-                                    class="answer-option flex items-center p-4 bg-white rounded-lg border-2 border-gray-200 cursor-pointer hover:border-indigo-500 transition-all duration-200">
-                                    <input type="radio" name="answers[{{ loop.index0 }}]" value="{{ answer.text }}"
-                                        required class="w-5 h-5 border-2 border-gray-300 rounded-full mr-3">
-                                    <span class="answer-text flex-1">{{ answer.text | safe }}</span>
+                                <label class="answer-option" data-correct="{{ answer.is_correct|lower }}">
+                                    <input type="radio" name="answers[{{ question.id }}]" value="{{ answer.id }}"
+                                        required>
+                                    <span class="answer-text">{{ answer.text|safe }}</span>
                                 </label>
                                 {% endfor %}
                             </div>
-                            <div class="flex justify-between mt-6">
-                                {% if not loop.first %}
-                                <button type="button"
-                                    class="prev-question px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
-                                    <i class="fas fa-arrow-left mr-2"></i> Previous
-                                </button>
-                                {% endif %}
-                                {% if loop.last %}
-                                <button type="submit"
-                                    class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors ml-auto">
-                                    Submit Quiz <i class="fas fa-check ml-2"></i>
-                                </button>
-                                {% else %}
-                                <button type="button"
-                                    class="next-question px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors ml-auto">
-                                    Next <i class="fas fa-arrow-right ml-2"></i>
-                                </button>
-                                {% endif %}
-                            </div>
                         </div>
                         {% endfor %}
+                        <div id="quiz-summary"
+                            class="hidden fixed inset-0 bg-black/50 flex items-center justify-center">
+                            <div class="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 animate-scale-up">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-6">Quiz Results</h2>
+                                <div class="stats-grid grid grid-cols-2 gap-6 mb-8">
+                                    <div class="stat-item bg-gray-50 p-4 rounded-lg text-center">
+                                        <h3 class="text-gray-600">Score</h3>
+                                        <p class="text-3xl font-bold text-indigo-600" id="final-score">0%</p>
+                                    </div>
+                                    <div class="stat-item bg-gray-50 p-4 rounded-lg text-center">
+                                        <h3 class="text-gray-600">Correct Answers</h3>
+                                        <p class="text-3xl font-bold text-green-600" id="correct-answers">0/0</p>
+                                    </div>
+                                </div>
+                                <div class="flex justify-center">
+                                    <a href="{{ url_for('home') }}"
+                                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                        Return Home
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </form>
                 {% endif %}
@@ -273,6 +280,94 @@
 
             // Initialize progress
             updateProgress(1);
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const questions = document.querySelectorAll('.question-card');
+            const totalQuestions = questions.length;
+            let correctAnswers = 0;
+            const ANSWER_DELAY = 3000; // 3 seconds delay
+
+            function showQuestion(index) {
+                questions.forEach(q => q.classList.add('hidden'));
+                if (questions[index]) {
+                    questions[index].classList.remove('hidden');
+                } else {
+                    finishQuiz();
+                }
+            }
+
+            function updateProgressBar(questionCard, starting = true) {
+                const timerProgress = questionCard.querySelector('.timer-progress');
+                timerProgress.style.transition = 'width 3s linear';
+                timerProgress.style.width = starting ? '100%' : '0%';
+            }
+
+            function handleAnswer(option) {
+                const questionCard = option.closest('.question-card');
+                const currentIndex = Array.from(questions).indexOf(questionCard);
+                const options = questionCard.querySelectorAll('.answer-option');
+                const isCorrect = option.dataset.correct === 'true';
+
+                // Start progress bar countdown
+                updateProgressBar(questionCard);
+
+                // Disable all options
+                options.forEach(opt => {
+                    opt.classList.add('pointer-events-none');
+                    opt.querySelector('input[type="radio"]').disabled = true;
+                });
+
+                // Show correct/wrong answers
+                options.forEach(opt => {
+                    if (opt.dataset.correct === 'true') {
+                        opt.classList.add('correct-answer');
+                    } else if (opt === option && !isCorrect) {
+                        opt.classList.add('wrong-answer');
+                    }
+                });
+
+                // Update score if correct
+                if (isCorrect) {
+                    correctAnswers++;
+                }
+
+                // Animate progress bar and advance
+                setTimeout(() => {
+                    updateProgressBar(questionCard, false);
+                }, 100);
+
+                // Auto advance after delay
+                setTimeout(() => {
+                    showQuestion(currentIndex + 1);
+                }, ANSWER_DELAY);
+            }
+
+            function finishQuiz() {
+                const score = (correctAnswers / totalQuestions) * 100;
+                document.getElementById('final-score').textContent = `${score.toFixed(1)}%`;
+                document.getElementById('correct-answers').textContent = `${correctAnswers}/${totalQuestions}`;
+                document.getElementById('quiz-summary').classList.remove('hidden');
+
+                // Submit form with results
+                document.getElementById('quizForm').submit();
+            }
+
+            // Add click handlers to all answer options
+            document.querySelectorAll('.answer-option').forEach(option => {
+                option.addEventListener('click', function () {
+                    if (!this.classList.contains('pointer-events-none')) {
+                        const radio = this.querySelector('input[type="radio"]');
+                        radio.checked = true;
+                        handleAnswer(this);
+                    }
+                });
+            });
+
+            // Start with first question
+            showQuestion(0);
         });
     </script>
 </body>
