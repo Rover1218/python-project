@@ -3,9 +3,6 @@
 A simple quiz web application that allows users to register, log in, and take quizzes. The application uses the Open Trivia API to fetch quiz questions dynamically and stores user data and responses in a PostgreSQL database.
 
 ---
-A simple quiz web application that allows users to register, log in, and take quizzes. The application uses the Open Trivia API to fetch quiz questions dynamically and stores user data and responses in a PostgreSQL database.
-
----
 
 ## Features
 
@@ -39,99 +36,50 @@ A simple quiz web application that allows users to register, log in, and take qu
    ```bash
    git clone https://github.com/your-username/quiz-app.git
    cd quiz-app
-Create a Virtual Environment
+   ```
 
-bash
-Copy code
-python -m venv venv
-source venv/bin/activate   # On Windows: venv\Scripts\activate
-Install Dependencies
+2. **Create a Virtual Environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # On Windows: venv\Scripts\activate
+   ```
 
-bash
-Copy code
-pip install -r requirements.txt
-Set Up Environment Variables
+3. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Create a .env file in the root directory:
-env
-Copy code
-DATABASE_URL=postgresql://username:password@host:port/dbname
-SECRET_KEY=your_secret_key
-Replace username, password, host, port, and dbname with your PostgreSQL database credentials.
-Initialize the Database
+4. **Set Up Environment Variables**
 
-Open the PostgreSQL client and execute the SQL schema provided here.
-Or use psql to execute:
-bash
-Copy code
-psql -U username -d dbname -f schema.sql
-Run the Application
+   Create a `.env` file in the root directory:
+   ```env
+   DATABASE_URL=postgresql://username:password@host:port/dbname
+   SECRET_KEY=your_secret_key
+   ```
+   Replace `username`, `password`, `host`, `port`, and `dbname` with your PostgreSQL database credentials.
 
-bash
-Copy code
-python app.py
-Access the Application
+5. **Initialize the Database**
 
-Open your browser and visit: http://localhost:5000
-File Structure
-bash
-Copy code
-quiz-app/
-│
-├── static/                  # Static files
-│   ├── style.css            # CSS styles
-│
-├── templates/               # HTML templates
-│   ├── home.html            # Home page
-│   ├── login.html           # Login page
-│   ├── register.html        # Register page
-│   ├── quiz.html            # Quiz page
-│
-├── app.py                   # Main application logic
-├── db.py                    # Database connection helper
-├── requirements.txt         # Python dependencies
-├── schema.sql               # Database schema
-├── .env                     # Environment variables (not included in the repo)
-└── README.md                # Project documentation
-API Integration
-Open Trivia API
-The application fetches questions from the Open Trivia API. You can adjust the number and type of questions in app.py:
+   Open the PostgreSQL client and execute the SQL schema provided here. Or use `psql` to execute:
+   ```bash
+   psql -U username -d dbname -f schema.sql
+   ```
 
-python
-Copy code
-response = requests.get("https://opentdb.com/api.php?amount=5&type=multiple")
-Deployment
-Local Deployment: Use the above instructions to run the app locally.
-Cloud Deployment: Deploy using platforms like:
-Heroku
-AWS
-Render
-Contribution Guidelines
-Fork the repository.
-Create a new branch for your feature or bugfix:
-bash
-Copy code
-git checkout -b feature-name
-Commit your changes and push to your fork:
-bash
-Copy code
-git add .
-git commit -m "Description of changes"
-git push origin feature-name
-Submit a Pull Request.
-License
-This project is licensed under the MIT License. See the LICENSE file for details.
+6. **Run the Application**
+   ```bash
+   python app.py
+   ```
 
-Acknowledgments
-Open Trivia API for providing the quiz questions.
-Flask for the backend framework.
-PostgreSQL for the database.
-yaml
-Copy code
+7. **Access the Application**
 
----
+   Open your browser and visit: `http://localhost:5000`
 
-### **How to Use It**
+## API Integration
 
-1. Replace `your-username` in the clone command with your GitHub username.
-2. Update any specific details like additional features, live demo links, or custom instructio
+The application integrates with the [Open Trivia API](https://opentdb.com/) to fetch quiz questions dynamically. Below is a brief overview of how the integration works:
+
+1. **Fetching Questions**: The application sends a GET request to the Open Trivia API endpoint to retrieve quiz questions based on the selected category and difficulty.
+2. **Processing Responses**: The API response is parsed, and the questions are formatted to be displayed to the user.
+3. **Handling Errors**: The application includes error handling to manage cases where the API request fails or returns no questions.
+
+Example of an API request to fetch 10 questions of medium difficulty from the "General Knowledge" category:
