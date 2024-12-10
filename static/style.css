@@ -1043,3 +1043,80 @@ input[type="password"] {
         opacity: 1;
     }
 }
+
+/* ...existing code... */
+
+/* ...existing code... */
+
+/* Add a loading animation for the redirect */
+.redirect-loading {
+    display: inline-block;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.6;
+    }
+}
+
+/* Loader Styles */
+.loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 5px solid #7952b3;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+#loader-overlay {
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+}
+
+#loader-overlay .bg-white {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ...existing code... */
+
+/* ...existing code... */
+
+/* ...existing code... */
+
+/* ...existing code... */

@@ -135,7 +135,11 @@
                         </script>
 
                         <!-- Start Button -->
-                        <div class="text-center mt-12">
+                        <div class="text-center mt-12 flex justify-center gap-4">
+                            <a href="{{ url_for('home') }}"
+                                class="px-10 py-4 text-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full transition-all duration-200">
+                                <i class="fas fa-arrow-left mr-2"></i>Back to Home
+                            </a>
                             <button type="submit"
                                 class="px-10 py-4 text-xl font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full hover:shadow-lg transition-all duration-200">
                                 <span class="mr-3">Start Quiz</span>
@@ -171,33 +175,12 @@
                             </div>
                         </div>
                         {% endfor %}
-                        <div id="quiz-summary"
-                            class="hidden fixed inset-0 bg-black/50 flex items-center justify-center">
-                            <div class="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 animate-scale-up">
-                                <h2 class="text-2xl font-bold text-gray-800 mb-6">Quiz Results</h2>
-                                <div class="stats-grid grid grid-cols-2 gap-6 mb-8">
-                                    <div class="stat-item bg-gray-50 p-4 rounded-lg text-center">
-                                        <h3 class="text-gray-600">Score</h3>
-                                        <p class="text-3xl font-bold text-indigo-600" id="final-score">0%</p>
-                                    </div>
-                                    <div class="stat-item bg-gray-50 p-4 rounded-lg text-center">
-                                        <h3 class="text-gray-600">Correct Answers</h3>
-                                        <p class="text-3xl font-bold text-green-600" id="correct-answers">0/0</p>
-                                    </div>
-                                </div>
-                                <div id="answers-review" class="mt-8">
-                                    <!-- Answer review will be populated here -->
-                                </div>
-                                <div class="flex justify-center gap-4 mt-8">
-                                    <a href="{{ url_for('home') }}"
-                                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                                        Return Home
-                                    </a>
-                                    <a href="{{ url_for('quiz') }}"
-                                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                                        Try Another Quiz
-                                    </a>
-                                </div>
+
+                        <!-- Add loader overlay -->
+                        <div id="loader-overlay"
+                            class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+                                <p class="text-lg text-gray-700">Saving your results...</p>
                             </div>
                         </div>
                     </div>
@@ -357,24 +340,22 @@
                 questions.forEach((question) => {
                     const selectedOption = question.querySelector('input[type="radio"]:checked');
                     if (selectedOption) {
-                        // Extract IDs and ensure they are integers
-                        const questionId = parseInt(question.querySelector('input[name="question_ids[]"]').value);
-                        const answerId = parseInt(selectedOption.value);
-
+                        const answerOption = selectedOption.closest('.answer-option');
                         answers.push({
-                            questionId: questionId,
-                            answerId: answerId,
-                            isCorrect: selectedOption.closest('.answer-option').dataset.correct === 'true',
-                            questionText: question.querySelector('p').textContent,
-                            selectedText: selectedOption.nextElementSibling.textContent,
-                            correctText: question.querySelector('.answer-option[data-correct="true"] .answer-text').textContent
+                            questionId: question.querySelector('input[name="question_ids[]"]').value,
+                            answerId: selectedOption.value,
+                            answerText: answerOption.querySelector('.answer-text').textContent,
+                            isCorrect: answerOption.dataset.correct === 'true'
                         });
                     }
                 });
 
+                // Debug log
+                console.log('Submitting answers:', answers);
+
                 if (answers.length > 0) {
-                    // Debug log
-                    console.log('Sending answers:', answers);
+                    // Show loader before sending request
+                    document.getElementById('loader-overlay').classList.remove('hidden');
 
                     fetch('{{ url_for("quiz") }}', {
                         method: 'POST',
@@ -384,49 +365,23 @@
                         },
                         body: JSON.stringify({ answers: answers })
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Update summary display
-                            document.getElementById('final-score').textContent = `${data.score.toFixed(1)}%`;
-                            document.getElementById('correct-answers').textContent = `${data.correct}/${data.total}`;
-                            
-                            // Show review
-                            const reviewContainer = document.getElementById('answers-review');
-                            reviewContainer.innerHTML = ''; // Clear previous content
-                            
-                            answers.forEach((answer, index) => {
-                                const answerEl = document.createElement('div');
-                                answerEl.className = `mb-4 p-4 rounded-lg ${answer.isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`;
-                                answerEl.innerHTML = `
-                                    <p class="font-semibold">Question ${index + 1}</p>
-                                    <p class="mt-2">${answer.questionText}</p>
-                                    <p class="mt-2">Your answer: ${answer.selectedText}</p>
-                                    ${!answer.isCorrect ? `<p class="mt-1 text-green-600">Correct answer: ${answer.correctText}</p>` : ''}
-                                `;
-                                reviewContainer.appendChild(answerEl);
-                            });
-
-                            // Show the summary modal
-                            document.getElementById('quiz-summary').classList.remove('hidden');
-
-                            // Trigger confetti for good scores
-                            if (data.score >= 70) {
-                                confetti({
-                                    particleCount: 100,
-                                    spread: 70,
-                                    origin: { y: 0.6 }
-                                });
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                setTimeout(() => {
+                                    window.location.href = data.redirect_url;
+                                }, 1500); // Add small delay to show loader
+                            } else {
+                                document.getElementById('loader-overlay').classList.add('hidden');
+                                console.error('Error:', data.error);
+                                alert('Error saving results: ' + data.error);
                             }
-                        } else {
-                            console.error('Error:', data.error);
-                            alert('Error saving results: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error saving quiz results');
-                    });
+                        })
+                        .catch(error => {
+                            document.getElementById('loader-overlay').classList.add('hidden');
+                            console.error('Error:', error);
+                            alert('Error saving quiz results');
+                        });
                 }
             }
 

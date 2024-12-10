@@ -5,24 +5,22 @@
 {% block content %}
 <div class="container page-enter">
     <div class="history-container">
-        <h1>Your Quiz History</h1>
-        {% if score is not none %}
-        <div class="history-item">
-            <h2>Latest Quiz Score: {{ score }}%</h2>
-            {% if score >= 80 %}
-            <p>🎉 Excellent performance!</p>
-            {% elif score >= 60 %}
-            <p>👍 Good effort!</p>
-            {% else %}
-            <p>💪 Keep improving!</p>
-            {% endif %}
-            <p class="text-muted">Taken on: {{ date }}</p>
+        <h1 class="text-3xl font-bold mb-6">Your Quiz History</h1>
+        {% if results %}
+        {% for result in results %}
+        <div class="history-item bg-white p-6 rounded-lg shadow mb-4">
+            <h2 class="text-2xl font-bold text-indigo-600">Score: {{ result[1] }}%</h2>
+            <p class="text-gray-600">Correct Answers: {{ result[4] }} out of {{ result[3] }}</p>
+            <p class="text-gray-500 text-sm">Taken on: {{ result[2].strftime("%B %d, %Y at %I:%M %p") }}</p>
         </div>
+        {% endfor %}
         {% else %}
-        <p>No quiz history found.</p>
+        <p class="text-gray-600">No quiz history found.</p>
         {% endif %}
-        <a href="/quiz" class="btn btn-primary animate-link">Take New Quiz</a>
-        <a href="/" class="btn animate-link">Back to Home</a>
+        <div class="mt-6">
+            <a href="{{ url_for('quiz') }}" class="btn btn-primary animate-link">Take New Quiz</a>
+            <a href="{{ url_for('home') }}" class="btn animate-link">Back to Home</a>
+        </div>
     </div>
 </div>
 {% endblock %}

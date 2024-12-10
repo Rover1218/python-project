@@ -6,6 +6,9 @@ import os
 from dotenv import load_dotenv
 from functools import wraps
 from datetime import datetime
+import pytz  # Add this import at the top
+from random import SystemRandom
+import time
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -26,7 +29,7 @@ def login_required(f):
 def home():
     # Check if there's a logout message stored in session
     logout_message = session.pop('logout_message', None)
-    if logout_message:
+    if (logout_message):
         flash(logout_message, "success")
     
     user_info = None
@@ -148,18 +151,97 @@ def register():
 @app.route('/quiz', methods=['GET', 'POST'])
 @login_required
 def quiz():
-    if request.method == 'GET':
-        # Get quiz parameters from query string
-        quiz_type = request.args.get('type')
-        category = request.args.get('category')
-        
-        # If no parameters are provided, show the quiz settings form
-        if not quiz_type and not category:
-            return render_template("quiz.html", questions=None)
-            
-        difficulty = request.args.get('difficulty')
-        amount = request.args.get('amount', '5')
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data received'})
 
+            user_id = session['user_id']
+            answers = data.get('answers', [])
+            
+            if not answers:
+                return jsonify({'success': False, 'error': 'No answers provided'})
+            
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'success': False, 'error': 'Database connection error'})
+
+            cur = conn.cursor()
+            try:
+                # Calculate scores and insert result
+                total_questions = len(answers)
+                correct_answers = sum(1 for ans in answers if ans['isCorrect'])
+                quiz_score = (correct_answers / total_questions) * 100
+
+                # Insert quiz result
+                cur.execute("""
+                    INSERT INTO Results 
+                    (user_id, quiz_score, total_questions, correct_answers, submitted_at)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    RETURNING result_id
+                """, (user_id, quiz_score, total_questions, correct_answers))
+                
+                result_id = cur.fetchone()[0]
+
+                # Process each answer
+                for answer in answers:
+                    try:
+                        # First ensure the question exists
+                        cur.execute("""
+                            SELECT question_id FROM Questions 
+                            WHERE question_id = %s
+                        """, (answer['questionId'],))
+                        
+                        if cur.fetchone():
+                            # Then verify and insert the user's answer
+                            cur.execute("""
+                                INSERT INTO User_Answers 
+                                (user_id, question_id, selected_answer_id, result_id, is_correct)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (
+                                user_id,
+                                answer['questionId'],
+                                answer['answerId'],
+                                result_id,
+                                answer['isCorrect']
+                            ))
+                            print(f"Successfully inserted answer for question {answer['questionId']}")
+                    except Exception as e:
+                        print(f"Error processing answer: {str(e)}")
+                        continue
+
+                conn.commit()
+                return jsonify({
+                    'success': True,
+                    'redirect_url': url_for('results')
+                })
+
+            except Exception as e:
+                conn.rollback()
+                print(f"Database error: {str(e)}")
+                return jsonify({'success': False, 'error': str(e)})
+            finally:
+                cur.close()
+                conn.close()
+
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)})
+
+    # GET method handling
+    quiz_type = request.args.get('type')
+    category = request.args.get('category')
+    
+    if not quiz_type and not category:
+        return render_template("quiz.html", questions=None)
+            
+    difficulty = request.args.get('difficulty')
+    amount = request.args.get('amount', '5')
+
+    try:
+        print(f"Fetching quiz: type={quiz_type}, category={category}, difficulty={difficulty}, amount={amount}")
+        
         # Build API URL with parameters
         api_url = f"https://opentdb.com/api.php?amount={amount}&type={quiz_type}"
         if category:
@@ -167,188 +249,152 @@ def quiz():
         if difficulty:
             api_url += f"&difficulty={difficulty}"
 
-        try:
-            # Fetch questions based on type
-            response = requests.get(api_url)
-            data = response.json()
-            
-            if data['response_code'] != 0:
-                flash("Error fetching questions. Please try again.", "error")
-                return redirect(url_for('home'))
-                
-            api_questions = data.get('results', [])
-            
-            if not api_questions:
-                flash("No questions available. Please try again.", "error")
-                return redirect(url_for('home'))
-            
-            conn = get_db_connection()
-            if conn:
-                cur = conn.cursor()
-                try:
-                    questions = []
-                    for q in api_questions:
-                        # Store category
-                        cur.execute("""
-                            INSERT INTO Categories (name) VALUES (%s)
-                            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-                            RETURNING category_id
-                        """, (q['category'],))
-                        category_id = cur.fetchone()[0]
-                        
-                        # Store question
-                        cur.execute("""
-                            INSERT INTO Questions (category_id, question_text, difficulty, question_type, api_question_id)
-                            VALUES (%s, %s, %s, %s, %s)
-                            ON CONFLICT (api_question_id) DO UPDATE SET question_text = EXCLUDED.question_text
-                            RETURNING question_id
-                        """, (category_id, q['question'], q['difficulty'], q['type'], 
-                              f"{q['question']}_{q['category']}"))  # Create unique ID
-                        question_id = cur.fetchone()[0]
-                        
-                        # Store answers based on question type
-                        if quiz_type == 'boolean':
-                            answers = [
-                                {'text': 'True', 'is_correct': q['correct_answer'] == 'True'},
-                                {'text': 'False', 'is_correct': q['correct_answer'] == 'False'}
-                            ]
-                        else:
-                            answers = [{'text': q['correct_answer'], 'is_correct': True}]
-                            for incorrect in q['incorrect_answers']:
-                                answers.append({'text': incorrect, 'is_correct': False})
-                        
-                        for answer in answers:
-                            cur.execute("""
-                                INSERT INTO Answers (question_id, answer_text, is_correct)
-                                VALUES (%s, %s, %s)
-                                RETURNING answer_id
-                            """, (question_id, answer['text'], answer['is_correct']))
-                        
-                        questions.append({
-                            'id': question_id,
-                            'question': q['question'],
-                            'answers': answers
-                        })
-                    
-                    conn.commit()
-                    return render_template("quiz.html", questions=questions)
-                except Exception as e:
-                    conn.rollback()
-                    flash(f"Error preparing quiz: {str(e)}", "error")
-                finally:
-                    cur.close()
-                    conn.close()
-        except Exception as e:
-            print("Error:", str(e))  # Print any errors
-            flash(f"Error fetching questions: {str(e)}", "error")
+        print(f"API URL: {api_url}")
+
+        # Fetch questions from API
+        response = requests.get(api_url)
+        data = response.json()
+        
+        print(f"API Response Code: {data['response_code']}")
+        
+        if data['response_code'] != 0:
+            flash("Error fetching questions. Please try again.", "error")
             return redirect(url_for('home'))
-    
-    if request.method == 'POST':
+            
+        api_questions = data.get('results', [])
+        
+        if not api_questions:
+            flash("No questions available. Please try again.", "error")
+            return redirect(url_for('home'))
+        
+        # Database operations
+        conn = get_db_connection()
+        if not conn:
+            flash("Database connection error. Please try again.", "error")
+            return redirect(url_for('home'))
+
+        questions = []
+        cur = conn.cursor()
+        
         try:
-            data = request.get_json()
-            print("Received data:", data)  # Debug log
+            # Begin transaction
+            cur.execute("BEGIN")
             
-            user_id = session['user_id']
-            answers = data.get('answers', [])
-            
-            if not answers:
-                return jsonify({'success': False, 'error': 'No answers provided'})
-            
-            total_questions = len(answers)
-            correct_answers = sum(1 for ans in answers if ans['isCorrect'])
-            quiz_score = (correct_answers / total_questions) * 100
+            for q in api_questions:
+                print(f"Processing question: {q['question'][:50]}...")
+                
+                # Insert category
+                cur.execute("""
+                    INSERT INTO Categories (name) 
+                    VALUES (%s) 
+                    ON CONFLICT (name) DO UPDATE 
+                    SET name = EXCLUDED.name 
+                    RETURNING category_id
+                """, (q['category'],))
+                category_id = cur.fetchone()[0]
+                print(f"Category ID: {category_id}")
+                
+                # Insert question
+                unique_id = f"{q['question']}_{q['category']}"
+                cur.execute("""
+                    INSERT INTO Questions 
+                    (category_id, question_text, difficulty, question_type, api_question_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (api_question_id) DO UPDATE 
+                    SET question_text = EXCLUDED.question_text
+                    RETURNING question_id
+                """, (category_id, q['question'], q['difficulty'], q['type'], unique_id))
+                question_id = cur.fetchone()[0]
+                print(f"Question ID: {question_id}")
+                
+                # Prepare and shuffle answers
+                answers = []
+                if q['type'] == 'boolean':
+                    answers = [
+                        {'text': q['correct_answer'], 'is_correct': True},
+                        {'text': 'True' if q['correct_answer'] == 'False' else 'False', 'is_correct': False}
+                    ]
+                else:
+                    answers = [{'text': incorrect, 'is_correct': False} for incorrect in q['incorrect_answers']]
+                    correct_answer = {'text': q['correct_answer'], 'is_correct': True}
+                    answers.append(correct_answer)  # Add correct answer
 
-            conn = get_db_connection()
-            if conn:
-                cur = conn.cursor()
-                try:
-                    # Create Results entry
+                # Shuffle answers
+                secure_random = SystemRandom()
+                secure_random.shuffle(answers)
+                
+                # Insert answers
+                stored_answers = []
+                for answer in answers:
                     cur.execute("""
-                        INSERT INTO Results 
-                        (user_id, quiz_score, total_questions, correct_answers, submitted_at)
-                        VALUES (%s, %s, %s, %s, NOW())
-                        RETURNING result_id
-                    """, (user_id, quiz_score, total_questions, correct_answers))
-                    
-                    result_id = cur.fetchone()[0]
-                    print(f"Created result_id: {result_id}")  # Debug log
-                    
-                    # Store each answer
-                    for answer in answers:
-                        print(f"Processing answer: {answer}")  # Debug log
-                        cur.execute("""
-                            INSERT INTO User_Answers 
-                            (user_id, question_id, selected_answer_id, result_id, is_correct)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (
-                            user_id, 
-                            answer['questionId'], 
-                            answer['answerId'],
-                            result_id,
-                            answer['isCorrect']
-                        ))
-                    
-                    conn.commit()
-                    return jsonify({
-                        'success': True,
-                        'score': quiz_score,
-                        'correct': correct_answers,
-                        'total': total_questions,
-                        'result_id': result_id
+                        INSERT INTO Answers 
+                        (question_id, answer_text, is_correct)
+                        VALUES (%s, %s, %s)
+                        RETURNING answer_id, answer_text, is_correct
+                    """, (question_id, answer['text'], answer['is_correct']))
+                    answer_data = cur.fetchone()
+                    stored_answers.append({
+                        'id': answer_data[0],
+                        'text': answer_data[1],
+                        'is_correct': answer_data[2]
                     })
-                except Exception as e:
-                    conn.rollback()
-                    print(f"Database error: {str(e)}")  # Debug log
-                    return jsonify({'success': False, 'error': str(e)})
-                finally:
-                    cur.close()
-                    conn.close()
-        except Exception as e:
-            print(f"Server error: {str(e)}")  # Debug log
-            return jsonify({'success': False, 'error': str(e)})
+                    print(f"Inserted answer ID: {answer_data[0]}")
+                
+                questions.append({
+                    'id': question_id,
+                    'question': q['question'],
+                    'answers': stored_answers
+                })
 
-    flash("Error loading quiz questions", "error")
+            # Commit the entire transaction
+            conn.commit()
+            print("Successfully committed all database operations")
+
+            ist = pytz.timezone('Asia/Kolkata')
+            current_time = datetime.now(ist).strftime("%B %d, %Y at %I:%M %p IST")
+            
+            return render_template("quiz.html", 
+                        questions=questions, 
+                        current_time=current_time)
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Database error: {str(e)}")
+            flash(f"Error preparing quiz: {str(e)}", "error")
+            return redirect(url_for('home'))
+        finally:
+            cur.close()
+            conn.close()
+
+    except Exception as e:
+        print(f"General error: {str(e)}")
+        flash(f"Error loading quiz: {str(e)}", "error")
+        return redirect(url_for('home'))
+
     return redirect(url_for('home'))
 
-@app.route('/results/<int:result_id>')
+@app.route('/results')
 @login_required
-def view_result(result_id):
+def results():
     conn = get_db_connection()
     if conn:
         cur = conn.cursor()
         try:
-            # Get quiz result
             cur.execute("""
-                SELECT quiz_score, submitted_at, total_questions, correct_answers
+                SELECT result_id, quiz_score, 
+                       submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as submitted_at, 
+                       total_questions, correct_answers
                 FROM Results 
-                WHERE result_id = %s AND user_id = %s
-            """, (result_id, session['user_id']))
-            result = cur.fetchone()
-            
-            if result:
-                # Get detailed answers
-                cur.execute("""
-                    SELECT q.question_text, ua.is_correct, 
-                           ua.selected_answer_id, a.answer_text,
-                           (SELECT answer_text FROM Answers WHERE question_id = q.question_id AND is_correct = true LIMIT 1) as correct_answer
-                    FROM User_Answers ua
-                    JOIN Questions q ON ua.question_id = q.question_id
-                    JOIN Answers a ON ua.selected_answer_id = a.answer_id
-                    WHERE ua.result_id = %s
-                    ORDER BY ua.answer_id
-                """, (result_id,))
-                answers = cur.fetchall()
-                
-                return render_template("results.html", 
-                                    result=result,
-                                    answers=answers)
-            
+                WHERE user_id = %s
+                ORDER BY submitted_at DESC
+            """, (session['user_id'],))
+            results = cur.fetchall()
+            return render_template("results.html", results=results)
         except Exception as e:
             flash(f"Error retrieving results: {str(e)}", "error")
         finally:
             cur.close()
             conn.close()
-    
     return redirect(url_for('home'))
 
 @app.route('/logout')
