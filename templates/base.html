@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Quiz Master{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">Quiz Master</a>
+            <div class="nav-links">
+                {% if 'user_id' in session %}
+                <a href="/quiz" class="nav-link animate-link">Start Quiz</a>
+                <a href="/results" class="nav-link animate-link">History</a>
+                <a href="/logout" class="nav-link animate-link">Logout</a>
+                {% else %}
+                <a href="/" class="nav-link animate-link">Home</a>
+                <a href="/login" class="nav-link animate-link">Login</a>
+                <a href="/register" class="nav-link animate-link">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="alert-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="page-transition">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Helper function to handle alerts
+            const handleAlerts = () => {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    alert.style.opacity = '1';
+                    setTimeout(() => {
+                        alert.classList.add('fade');
+                        setTimeout(() => {
+                            if (alert.parentElement) {
+                                alert.remove();
+                            }
+                        }, 500);
+                    }, 3000);
+                });
+            };
+
+            // Initial alert handling
+            handleAlerts();
+
+            // Only store flash message on logout
+            const logoutLink = document.querySelector('a[href="/logout"]');
+            if (logoutLink) {
+                logoutLink.addEventListener('click', () => {
+                    const alertContainer = document.querySelector('.alert-container');
+                    if (alertContainer && alertContainer.innerHTML.trim()) {
+                        sessionStorage.setItem('flashMessage', alertContainer.innerHTML);
+                    }
+                });
+            }
+
+            // Show stored message only if coming from logout
+            const storedFlash = sessionStorage.getItem('flashMessage');
+            if (storedFlash && document.referrer.includes('/logout')) {
+                document.querySelector('.alert-container').innerHTML = storedFlash;
+                sessionStorage.removeItem('flashMessage');
+                handleAlerts();
+            }
+
+            // Add click animation
+            document.querySelectorAll('.btn, .nav-link').forEach(element => {
+                element.addEventListener('click', function () {
+                    this.classList.add('clicked');
+                    setTimeout(() => this.classList.remove('clicked'), 200);
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

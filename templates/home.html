@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Master - Test Your Knowledge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">Quiz Master</a>
+            <div class="nav-links">
+                {% if 'user_id' in session %}
+                <a href="/quiz" class="nav-link animate-link">Start Quiz</a>
+                <a href="/results" class="nav-link animate-link">History</a>
+                <a href="/logout" class="nav-link animate-link">Logout</a>
+                {% else %}
+                <a href="/" class="nav-link animate-link">Home</a>
+                <a href="/login" class="nav-link">Login</a>
+                <a href="/register" class="nav-link">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="hero-section">
+            {% if 'user_id' in session %}
+            <h1>Welcome Back, {{ session['username'] }}! 👋</h1>
+            <p>Ready to challenge yourself with a new quiz?</p>
+            <a href="/quiz" class="btn btn-primary">Start New Quiz</a>
+            {% if user_info %}
+            <div class="user-dashboard">
+                <h2>Welcome back, {{ user_info.username }}! 👋</h2>
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>Total Quizzes</h3>
+                        <p>{{ user_info.total_quizzes }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Average Score</h3>
+                        <p>{{ user_info.average_score }}%</p>
+                    </div>
+                    {% if user_info.latest_score %}
+                    <div class="stat-card">
+                        <h3>Latest Score</h3>
+                        <p>{{ user_info.latest_score }}%</p>
+                        <small>{{ user_info.latest_date }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="dashboard-actions">
+                    <a href="/quiz" class="btn btn-primary">Start New Quiz</a>
+                    <a href="/results" class="btn">View History</a>
+                </div>
+            </div>
+            {% else %}
+            <!-- Original welcome content for non-logged in users -->
+            {% endif %}
+            {% else %}
+            <h1>Welcome to Quiz Master</h1>
+            <p>Powered by Open Trivia Database - Test your knowledge across thousands of questions!</p>
+            <div class="hero-buttons">
+                <a href="/register" class="btn btn-primary">Get Started</a>
+                <a href="/login" class="btn">Login</a>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🌍</div>
+                    <h3>24 Categories</h3>
+                    <p>From General Knowledge and Science to Entertainment and Sports</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Three Difficulty Levels</h3>
+                    <p>Challenge yourself with Easy, Medium, or Hard questions</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3>Multiple Choice</h3>
+                    <p>Test your knowledge with carefully curated multiple-choice questions</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚖️</div>
+                    <h3>True/False Questions</h3>
+                    <p>Test your knowledge with quick true/false challenges</p>
+                </div>
+            </div>
+
+            <div class="categories-section">
+                <h2>Available Categories</h2>
+                <div class="category-grid">
+                    <div class="category-item">🧪 Science</div>
+                    <div class="category-item">🎨 Art</div>
+                    <div class="category-item">📚 Literature</div>
+                    <div class="category-item">🎬 Movies</div>
+                    <div class="category-item">🎮 Gaming</div>
+                    <div class="category-item">🏛️ History</div>
+                    <div class="category-item">🌍 Geography</div>
+                    <div class="category-item">⚽ Sports</div>
+                </div>
+            </div>
+
+            <div class="stats-section">
+                <div class="stat-item">
+                    <div class="stat-number">4,000+</div>
+                    <div class="stat-label">Questions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">24</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">3</div>
+                    <div class="stat-label">Difficulty Levels</div>
+                </div>
+            </div>
+
+            <div class="how-it-works">
+                <h2>How It Works</h2>
+                <div class="steps-grid">
+                    <div class="step-card">
+                        <div class="step-number">1</div>
+                        <h3>Create Account</h3>
+                        <p>Sign up for free in seconds</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-number">2</div>
+                        <h3>Start Quiz</h3>
+                        <p>Choose from various categories</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-number">3</div>
+                        <h3>Get Results</h3>
+                        <p>Track your progress over time</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cta-section">
+                <h2>Ready to Test Your Knowledge?</h2>
+                <p>Join thousands of quiz enthusiasts and start your journey today!</p>
+                <a href="/register" class="btn btn-primary">Create Free Account</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Add smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

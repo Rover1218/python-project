@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Quiz Master{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="auth-container">
+        <h1>Welcome Back!</h1>
+        <form method="POST">
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn">Login</button>
+        </form>
+        <a href="/register" class="auth-link">Don't have an account? Register</a>
+    </div>
+</div>
+{% endblock %}

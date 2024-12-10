@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz History - Quiz Master{% endblock %}
+
+{% block content %}
+<div class="container page-enter">
+    <div class="history-container">
+        <h1>Your Quiz History</h1>
+        {% if score is not none %}
+        <div class="history-item">
+            <h2>Latest Quiz Score: {{ score }}%</h2>
+            {% if score >= 80 %}
+            <p>🎉 Excellent performance!</p>
+            {% elif score >= 60 %}
+            <p>👍 Good effort!</p>
+            {% else %}
+            <p>💪 Keep improving!</p>
+            {% endif %}
+            <p class="text-muted">Taken on: {{ date }}</p>
+        </div>
+        {% else %}
+        <p>No quiz history found.</p>
+        {% endif %}
+        <a href="/quiz" class="btn btn-primary animate-link">Take New Quiz</a>
+        <a href="/" class="btn animate-link">Back to Home</a>
+    </div>
+</div>
+{% endblock %}
