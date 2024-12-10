@@ -11,6 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
 
 <body
@@ -140,7 +141,7 @@
                                 class="px-10 py-4 text-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full transition-all duration-200">
                                 <i class="fas fa-arrow-left mr-2"></i>Back to Home
                             </a>
-                            <button type="submit"
+                            <button type="submit" id="startQuizButton"
                                 class="px-10 py-4 text-xl font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full hover:shadow-lg transition-all duration-200">
                                 <span class="mr-3">Start Quiz</span>
                                 <i class="fas fa-play-circle"></i>
@@ -398,6 +399,23 @@
 
             // Start with first question
             showQuestion(0);
+        });
+    </script>
+
+    <!-- Add loader overlay -->
+    <div id="loader-overlay" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+            <p class="text-lg text-gray-700">Creating questions...</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('startQuizButton').addEventListener('click', function (e) {
+            e.preventDefault();
+            document.getElementById('loader-overlay').classList.remove('hidden');
+            setTimeout(() => {
+                document.querySelector('.quiz-settings form').submit();
+            }, 2000); // Adjust delay as needed
         });
     </script>
 </body>

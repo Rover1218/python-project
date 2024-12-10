@@ -185,16 +185,14 @@ def quiz():
                 result_id = cur.fetchone()[0]
 
                 # Process each answer
-                for answer in answers:
-                    try:
-                        # First ensure the question exists
+                try:
+                    for answer in answers:
                         cur.execute("""
                             SELECT question_id FROM Questions 
                             WHERE question_id = %s
                         """, (answer['questionId'],))
                         
                         if cur.fetchone():
-                            # Then verify and insert the user's answer
                             cur.execute("""
                                 INSERT INTO User_Answers 
                                 (user_id, question_id, selected_answer_id, result_id, is_correct)
@@ -206,27 +204,23 @@ def quiz():
                                 result_id,
                                 answer['isCorrect']
                             ))
-                            print(f"Successfully inserted answer for question {answer['questionId']}")
-                    except Exception as e:
-                        print(f"Error processing answer: {str(e)}")
-                        continue
-
-                conn.commit()
-                return jsonify({
-                    'success': True,
-                    'redirect_url': url_for('results')
-                })
+                    
+                    conn.commit()
+                    return jsonify({
+                        'success': True,
+                        'redirect_url': url_for('results')
+                    })
+                except Exception as e:
+                    conn.rollback()
+                    raise e
 
             except Exception as e:
-                conn.rollback()
-                print(f"Database error: {str(e)}")
                 return jsonify({'success': False, 'error': str(e)})
             finally:
                 cur.close()
                 conn.close()
 
         except Exception as e:
-            print(f"Error: {str(e)}")
             return jsonify({'success': False, 'error': str(e)})
 
     # GET method handling
@@ -240,8 +234,6 @@ def quiz():
     amount = request.args.get('amount', '5')
 
     try:
-        print(f"Fetching quiz: type={quiz_type}, category={category}, difficulty={difficulty}, amount={amount}")
-        
         # Build API URL with parameters
         api_url = f"https://opentdb.com/api.php?amount={amount}&type={quiz_type}"
         if category:
@@ -249,13 +241,9 @@ def quiz():
         if difficulty:
             api_url += f"&difficulty={difficulty}"
 
-        print(f"API URL: {api_url}")
-
         # Fetch questions from API
         response = requests.get(api_url)
         data = response.json()
-        
-        print(f"API Response Code: {data['response_code']}")
         
         if data['response_code'] != 0:
             flash("Error fetching questions. Please try again.", "error")
@@ -281,7 +269,6 @@ def quiz():
             cur.execute("BEGIN")
             
             for q in api_questions:
-                print(f"Processing question: {q['question'][:50]}...")
                 
                 # Insert category
                 cur.execute("""
@@ -292,7 +279,6 @@ def quiz():
                     RETURNING category_id
                 """, (q['category'],))
                 category_id = cur.fetchone()[0]
-                print(f"Category ID: {category_id}")
                 
                 # Insert question
                 unique_id = f"{q['question']}_{q['category']}"
@@ -305,7 +291,6 @@ def quiz():
                     RETURNING question_id
                 """, (category_id, q['question'], q['difficulty'], q['type'], unique_id))
                 question_id = cur.fetchone()[0]
-                print(f"Question ID: {question_id}")
                 
                 # Prepare and shuffle answers
                 answers = []
@@ -338,7 +323,6 @@ def quiz():
                         'text': answer_data[1],
                         'is_correct': answer_data[2]
                     })
-                    print(f"Inserted answer ID: {answer_data[0]}")
                 
                 questions.append({
                     'id': question_id,
@@ -348,7 +332,6 @@ def quiz():
 
             # Commit the entire transaction
             conn.commit()
-            print("Successfully committed all database operations")
 
             ist = pytz.timezone('Asia/Kolkata')
             current_time = datetime.now(ist).strftime("%B %d, %Y at %I:%M %p IST")
@@ -359,7 +342,6 @@ def quiz():
 
         except Exception as e:
             conn.rollback()
-            print(f"Database error: {str(e)}")
             flash(f"Error preparing quiz: {str(e)}", "error")
             return redirect(url_for('home'))
         finally:
@@ -367,7 +349,6 @@ def quiz():
             conn.close()
 
     except Exception as e:
-        print(f"General error: {str(e)}")
         flash(f"Error loading quiz: {str(e)}", "error")
         return redirect(url_for('home'))
 
@@ -407,4 +388,7 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use environment variables to control the server configuration
+    debug_mode = os.getenv('FLASK_ENV') == 'development'
+    host = '127.0.0.1' if debug_mode else '0.0.0.0'
+    app.run(host=host, debug=debug_mode)
